@@ -23,8 +23,8 @@ struct process
   /* Additional fields here */
   u32 response_time;
   u32 wait_time;
-  u32 time_this_round;
   u32 gotResponse;
+  u32 execution_time;
   /* End of "Additional fields here" */
 };
 
@@ -166,45 +166,48 @@ int main(int argc, char *argv[])
   u32 procsComplete = 0;
   u32 currProcs = 0;
 
+  struct process *procToAdd;
   while(procsComplete < size){
     //increment time
     //check if new processes have arrived
-    for(u32 i = currProcs; i < size; i++){
-      if(data[i].arrival_time == currTime){
+    for (u32 i = size-1; i >= currProcs && i < size; i--) {
+      if (data[i].arrival_time == currTime) {
         TAILQ_INSERT_TAIL(&list, &data[i], pointers);
         currProcs++;
       }
     }
 
+    if(procToAdd != NULL){
+      TAILQ_INSERT_TAIL(&list, procToAdd, pointers);
+      procToAdd = NULL;
+    }
+
     if(!TAILQ_EMPTY(&list)){
       struct process *currProc = TAILQ_FIRST(&list);
+      //printf("CURR: %u with burst remaining %u \n", currProc->pid, currProc->burst_time - currProc->execution_time);
 
       //set response time if not yet set
       if(currProc->gotResponse == 0){
-        printf("first responded at %u was added at %u", currTime, currProc->arrival_time);
         currProc->response_time = currTime - currProc->arrival_time;
         total_response_time += currProc->response_time;
         currProc->gotResponse = 1;
       }
 
-      currProc->burst_time -= 1;
-      currProc->time_this_round += 1;
+      currProc->execution_time += 1;
 
-      if(currProc->burst_time == 0){
-        currProc->time_this_round = 0;
-        currProc->wait_time = currTime - currProc->arrival_time;
+      if(currProc->execution_time == currProc->burst_time){
+        currProc->wait_time = currTime + 1 - currProc->arrival_time - currProc->burst_time;
         total_waiting_time += currProc->wait_time;
         procsComplete++;
-        printf("Process finished after %u", currProc->wait_time);
+        //printf("KICKED: Process waited a total of %u seconds \n", currProc->wait_time);
         TAILQ_REMOVE(&list, currProc, pointers);
       }
-      else if(currProc->time_this_round == quantum_length){
-        currProc->time_this_round = 0;
-        printf("Process kicked out %u", currProc->burst_time);
+      else if(currProc->execution_time % quantum_length == 0){
+        //printf("DONE: Process kicked out with %u remaining \n", currProc->burst_time - currProc->execution_time);
         TAILQ_REMOVE(&list, currProc, pointers);
-        TAILQ_INSERT_TAIL(&list, currProc, pointers);
+        procToAdd = currProc;
       }else{
-        printf("tick %u", currProc->pid);
+        //printf("tick %u \n", currProc->pid);
       }
     }
     //printf("%u", procsComplete);

@@ -159,24 +159,23 @@ int main(int argc, char *argv[])
 
   struct process_list list;
   TAILQ_INIT(&list);
-  //your code here
+  /*start of my code*/
   u32 total_waiting_time = 0;
   u32 total_response_time = 0;
   u32 currTime = 0;
   u32 procsComplete = 0;
-  u32 currProcs = 0;
 
-  struct process *procToAdd;
+  struct process *procToAdd = NULL;
   while(procsComplete < size){
-    //increment time
+
     //check if new processes have arrived
-    for (u32 i = size-1; i >= currProcs && i < size; i--) {
+    for (u32 i = 0; i < size; i++) {
       if (data[i].arrival_time == currTime) {
         TAILQ_INSERT_TAIL(&list, &data[i], pointers);
-        currProcs++;
       }
     }
 
+    //insert additional process if it just reached the quantum length
     if(procToAdd != NULL){
       TAILQ_INSERT_TAIL(&list, procToAdd, pointers);
       procToAdd = NULL;
@@ -184,7 +183,15 @@ int main(int argc, char *argv[])
 
     if(!TAILQ_EMPTY(&list)){
       struct process *currProc = TAILQ_FIRST(&list);
-      //printf("CURR: %u with burst remaining %u \n", currProc->pid, currProc->burst_time - currProc->execution_time);
+      if(currProc->burst_time == 0){
+        currProc->response_time = currTime - currProc->arrival_time;
+        total_response_time += currProc->response_time;
+        currProc->wait_time = currTime - currProc->arrival_time;
+        total_waiting_time += currProc->wait_time;
+        TAILQ_REMOVE(&list, currProc, pointers);
+        procsComplete++;
+        continue;
+      }
 
       //set response time if not yet set
       if(currProc->gotResponse == 0){
@@ -193,34 +200,24 @@ int main(int argc, char *argv[])
         currProc->gotResponse = 1;
       }
 
+
       currProc->execution_time += 1;
 
+      //check if we are out of time or completed the process
       if(currProc->execution_time == currProc->burst_time){
         currProc->wait_time = currTime + 1 - currProc->arrival_time - currProc->burst_time;
         total_waiting_time += currProc->wait_time;
         procsComplete++;
-        //printf("KICKED: Process waited a total of %u seconds \n", currProc->wait_time);
         TAILQ_REMOVE(&list, currProc, pointers);
       }
       else if(currProc->execution_time % quantum_length == 0){
-        //printf("DONE: Process kicked out with %u remaining \n", currProc->burst_time - currProc->execution_time);
         TAILQ_REMOVE(&list, currProc, pointers);
         procToAdd = currProc;
-      }else{
-        //printf("tick %u \n", currProc->pid);
       }
     }
-    //printf("%u", procsComplete);
-    //printf("%u", size);
     currTime++;
   }
-  //each while is 1 second, update current slice and check if we're done, if we're not done and time slice is up, add to uqueue, if done free memory
-  //update everything else in the queue and update wait and response time if we haven't run
-  //everytime you hit something you want to add, malloc the size of struct process
-  //go through every process, decrement burst time
-  //keep track of current time in each time slice
-
-  /* End of "Your code here" */
+  /* End of my code */
 
   printf("Average waiting time: %.2f\n", (float)total_waiting_time / (float)size);
   printf("Average response time: %.2f\n", (float)total_response_time / (float)size);
